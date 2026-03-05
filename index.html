@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BehaviorIQ — Behavioral Segmentation</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F4F6F9;--white:#FFFFFF;--sidebar:#1C2B3A;
+  --primary:#3B6FF0;--primary-l:#EBF0FE;
+  --text:#1A2233;--muted:#6B7A99;--border:#E2E8F0;
+  --green:#059669;--green-l:#ECFDF5;--green-b:#A7F3D0;
+  --amber:#D97706;--amber-l:#FFFBEB;
+  --red:#DC2626;--red-l:#FEF2F2;
+  --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);
+  --shadow-md:0 4px 16px rgba(0,0,0,.10);
+  --radius:10px;--font:'Inter',sans-serif
+}
+body{font-family:var(--font);background:var(--bg);color:var(--text);display:flex;min-height:100vh;font-size:14px;line-height:1.5}
+
+/* ── Sidebar ── */
+.sidebar{width:220px;min-height:100vh;background:var(--sidebar);display:flex;flex-direction:column;flex-shrink:0;position:fixed;top:0;left:0;bottom:0;z-index:100}
+.sb-brand{padding:22px 20px 16px;border-bottom:1px solid rgba(255,255,255,.07)}
+.sb-brand .name{font-size:16px;font-weight:700;color:#fff;letter-spacing:.3px}
+.sb-brand .sub{font-size:11px;color:rgba(255,255,255,.38);margin-top:2px}
+.sb-nav{flex:1;padding:12px 10px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:7px;cursor:pointer;color:rgba(255,255,255,.5);font-size:13px;font-weight:500;transition:background .15s,color .15s;user-select:none;margin-bottom:2px}
+.nav-item svg{flex-shrink:0;opacity:.65;transition:opacity .15s}
+.nav-item:hover{background:rgba(255,255,255,.07);color:#fff}.nav-item:hover svg{opacity:1}
+.nav-item.active{background:var(--primary);color:#fff}.nav-item.active svg{opacity:1}
+.sb-footer{padding:14px 18px;border-top:1px solid rgba(255,255,255,.07);font-size:11px;color:rgba(255,255,255,.28)}
+
+/* ── Main ── */
+.main{margin-left:220px;flex:1;display:flex;flex-direction:column;min-height:100vh}
+.topbar{background:var(--white);border-bottom:1px solid var(--border);padding:0 28px;height:54px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
+.topbar-title{font-size:15px;font-weight:600;color:var(--text)}
+.topbar-meta{display:flex;align-items:center;gap:14px;font-size:12px;color:var(--muted)}
+.status-pill{display:flex;align-items:center;gap:5px;background:var(--green-l);color:var(--green);border:1px solid var(--green-b);border-radius:20px;padding:3px 10px;font-size:12px;font-weight:500}
+.dot{width:6px;height:6px;border-radius:50%;background:#10B981;animation:blink 2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
+.content{padding:24px 28px;flex:1}
+.page{display:none}.page.active{display:block;animation:fadeUp .25s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.page-header{margin-bottom:20px}
+.page-header h1{font-size:20px;font-weight:700;color:var(--text)}
+.page-header p{font-size:13px;color:var(--muted);margin-top:3px}
+
+/* ── KPI row ── */
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+.kpi-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow)}
+.kpi-label{font-size:11px;font-weight:600;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+.kpi-value{font-size:26px;font-weight:700;color:var(--text);line-height:1;margin-bottom:4px}
+.kpi-value.blue{color:var(--primary)}.kpi-value.green{color:var(--green)}.kpi-value.amber{color:var(--amber)}
+.kpi-sub{font-size:11px;color:var(--muted)}
+
+/* ── Grids ── */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px}
+.g12{display:grid;grid-template-columns:1fr 2fr;gap:14px;margin-bottom:14px}
+
+/* ── Card ── */
+.card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
+.card-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px}
+.card-badge{font-size:11px;font-weight:500;color:var(--primary);background:var(--primary-l);border-radius:20px;padding:2px 9px;white-space:nowrap}
+.card-badge.green{color:var(--green);background:var(--green-l)}
+.card-badge.amber{color:var(--amber);background:var(--amber-l)}
+
+/* ── Segment cards ── */
+.seg-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
+.seg-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);border-top:3px solid var(--c);position:relative;transition:box-shadow .2s,transform .2s}
+.seg-card:hover{box-shadow:var(--shadow-md);transform:translateY(-2px)}
+.top-star{position:absolute;top:10px;right:10px;background:var(--green-l);color:var(--green);border:1px solid var(--green-b);border-radius:4px;font-size:10px;font-weight:700;padding:2px 7px}
+.seg-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px}
+.seg-name{font-size:13px;font-weight:700;color:var(--text)}
+.seg-size{font-size:11px;color:var(--muted);margin-top:2px}
+.seg-ico{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:var(--ico-bg)}
+.seg-ico svg{width:17px;height:17px;color:var(--c)}
+.seg-desc{font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.4}
+.conv-score{display:flex;align-items:center;gap:8px;background:var(--bg);border-radius:6px;padding:7px 10px;margin-bottom:10px}
+.conv-score-val{font-size:20px;font-weight:700;color:var(--c)}
+.conv-score-lbl{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;line-height:1.3}
+.seg-metrics{border-top:1px solid var(--border);padding-top:10px}
+.sm-row{display:flex;justify-content:space-between;font-size:11px;padding:2px 0}
+.sm-k{color:var(--muted)}.sm-v{font-weight:600;color:var(--text)}
+.sm-bar{height:3px;background:var(--border);border-radius:2px;margin:3px 0 5px;overflow:hidden}
+.sm-fill{height:100%;border-radius:2px;background:var(--c)}
+
+/* ── Tables ── */
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);padding:8px 10px;border-bottom:2px solid var(--border);white-space:nowrap}
+.tbl td{padding:10px 10px;font-size:13px;border-bottom:1px solid var(--border);vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tbody tr:hover td{background:#F8FAFC}
+.tbl td.center{text-align:center}.tbl th.center{text-align:center}
+
+/* ── Badges ── */
+.badge{display:inline-block;font-size:11px;font-weight:600;padding:3px 8px;border-radius:20px}
+.b-high{background:var(--green-l);color:var(--green)}.b-medium{background:var(--amber-l);color:var(--amber)}.b-low{background:#F1F5F9;color:#64748B}
+.b-primary{background:var(--primary-l);color:var(--primary)}.b-warn{background:var(--amber-l);color:var(--amber)}.b-grey{background:#F1F5F9;color:#64748B}
+.seg-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;flex-shrink:0}
+
+/* ── Scatter controls ── */
+.scatter-controls{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.scatter-btn{font-size:12px;font-weight:500;padding:5px 14px;border-radius:20px;border:1px solid var(--border);background:var(--white);color:var(--muted);cursor:pointer;transition:all .15s}
+.scatter-btn:hover{border-color:var(--primary);color:var(--primary)}
+.scatter-btn.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+
+/* ── Highlight banner ── */
+.highlight-banner{display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,#EBF0FE,#ECFDF5);border:1px solid #C7D7FD;border-radius:var(--radius);padding:14px 16px;margin-bottom:14px}
+.hb-icon{width:36px;height:36px;background:var(--primary);border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.hb-title{font-size:13px;font-weight:700;color:var(--text)}
+.hb-sub{font-size:12px;color:var(--muted)}
+
+/* ── ARI meter ── */
+.ari-row{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted);margin-top:8px}
+.ari-bar-wrap{flex:1;height:8px;background:var(--border);border-radius:4px;overflow:hidden}
+.ari-bar-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,#3B6FF0,#10B981)}
+
+/* ── Score row ── */
+.score-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.score-chip{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:5px 11px;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.score-chip b{color:var(--text);font-weight:600}
+
+/* ── Legend ── */
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--muted)}
+.legend-item{display:flex;align-items:center;gap:6px}
+.legend-dot{width:9px;height:9px;border-radius:50%}
+
+/* ── Loading ── */
+#loading{position:fixed;inset:0;background:var(--white);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:9999;transition:opacity .4s}
+.spinner{width:34px;height:34px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:14px;color:var(--muted);font-weight:500}
+
+/* ── Error ── */
+#error-banner{display:none;background:var(--red-l);border:1px solid #FECACA;border-radius:var(--radius);padding:14px 18px;margin-bottom:18px;font-size:13px;color:var(--red)}
+
+/* ── Rationale cell ── */
+.rationale{font-size:11px;color:var(--muted);margin-top:3px}
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <div class="loading-text">Running K-Means · Agglomerative · DBSCAN…</div>
+</div>
+
+<!-- ── Sidebar ───────────────────────── -->
+<aside class="sidebar">
+  <div class="sb-brand">
+    <div class="name">BehaviorIQ</div>
+    <div class="sub">Behavioral Segmentation</div>
+  </div>
+  <nav class="sb-nav">
+    <div class="nav-item active" onclick="showPage('overview',this)">
+      <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M2 4a2 2 0 012-2h4a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2V4zm10 0a2 2 0 012-2h4a2 2 0 012 2v4a2 2 0 01-2 2h-4a2 2 0 01-2-2V4zM2 14a2 2 0 012-2h4a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4zm10 0a2 2 0 012-2h4a2 2 0 012 2v4a2 2 0 01-2 2h-4a2 2 0 01-2-2v-4z"/></svg>
+      Overview
+    </div>
+    <div class="nav-item" onclick="showPage('profiles',this)">
+      <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/></svg>
+      Cluster Profiles
+    </div>
+    <div class="nav-item" onclick="showPage('methods',this)">
+      <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M5 4a1 1 0 00-2 0v7.268a2 2 0 000 3.464V16a1 1 0 102 0v-1.268a2 2 0 000-3.464V4zM11 4a1 1 0 10-2 0v1.268a2 2 0 000 3.464V16a1 1 0 102 0V8.732a2 2 0 000-3.464V4zM16 3a1 1 0 011 1v7.268a2 2 0 010 3.464V16a1 1 0 11-2 0v-1.268a2 2 0 010-3.464V4a1 1 0 011-1z"/></svg>
+      Method Comparison
+    </div>
+    <div class="nav-item" onclick="showPage('targeting',this)">
+      <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"/></svg>
+      Targeting
+    </div>
+  </nav>
+  <div class="sb-footer">Flask + scikit-learn · v2.0</div>
+</aside>
+
+<!-- ── Main ──────────────────────────── -->
+<div class="main">
+  <div class="topbar">
+    <span class="topbar-title" id="topbar-title">Overview</span>
+    <div class="topbar-meta">
+      <span id="meta-users">—</span>
+      <span id="meta-k">Optimal K: —</span>
+      <div class="status-pill"><div class="dot"></div>Live</div>
+    </div>
+  </div>
+
+  <div class="content">
+    <div id="error-banner">
+      ⚠ Cannot reach Flask server at <strong>localhost:5000</strong>.
+      Run <code>python app.py</code> first.
+    </div>
+
+    <!-- ══════════════════ PAGE 1: OVERVIEW ══════════════════ -->
+    <div class="page active" id="page-overview">
+      <div class="page-header">
+        <h1>Overview</h1>
+        <p>500 users · 5 behavioral metrics · K-Means, Agglomerative, DBSCAN · optimal K selected via Silhouette + Davies-Bouldin</p>
+      </div>
+      <div class="kpi-row" id="ov-kpis"></div>
+      <div class="g2">
+        <div class="card">
+          <div class="card-title">
+            PCA Scatter — Cluster View
+            <div style="display:flex;gap:6px">
+              <button class="scatter-btn active" onclick="switchScatter('kmeans',this)">K-Means</button>
+              <button class="scatter-btn" onclick="switchScatter('agg',this)">Agglomerative</button>
+              <button class="scatter-btn" onclick="switchScatter('dbscan',this)">DBSCAN</button>
+            </div>
+          </div>
+          <div style="position:relative;height:300px"><canvas id="ch-scatter"></canvas></div>
+          <div class="legend" id="scatter-legend"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">
+            K-Selection: Elbow + Silhouette
+            <span class="card-badge" id="elbow-badge">Optimal K=—</span>
+          </div>
+          <div class="score-row" id="score-row"></div>
+          <div style="position:relative;height:230px"><canvas id="ch-elbow"></canvas></div>
+        </div>
+      </div>
+      <div class="g2">
+        <div class="card">
+          <div class="card-title">Segment Size Distribution</div>
+          <div style="position:relative;height:240px"><canvas id="ch-pie"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Feature Averages by Cluster</div>
+          <div style="position:relative;height:240px"><canvas id="ch-bar"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════ PAGE 2: PROFILES ══════════════════ -->
+    <div class="page" id="page-profiles">
+      <div class="page-header">
+        <h1>Cluster Profiles</h1>
+        <p>Each cluster profiled with mean behavioural characteristics, std deviation, and a weighted conversion probability score (0–100).</p>
+      </div>
+      <div id="hl-banner" class="highlight-banner" style="display:none">
+        <div class="hb-icon">
+          <svg viewBox="0 0 20 20" fill="white" width="18" height="18"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+        </div>
+        <div>
+          <div class="hb-title" id="hl-title">—</div>
+          <div class="hb-sub" id="hl-sub">—</div>
+        </div>
+      </div>
+      <div class="seg-grid" id="seg-grid"></div>
+      <div class="g12">
+        <div class="card">
+          <div class="card-title">Radar — Normalised (0–100)</div>
+          <div style="position:relative;height:280px"><canvas id="ch-radar"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Metric Comparison <span style="font-size:11px;font-weight:400;color:var(--muted)">(bold = highest per row)</span></div>
+          <table class="tbl" id="comp-tbl"></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════ PAGE 3: METHODS ═══════════════════ -->
+    <div class="page" id="page-methods">
+      <div class="page-header">
+        <h1>Method Comparison</h1>
+        <p>K-Means (primary) · Agglomerative/Ward (validation) · DBSCAN (outlier detection). Cluster stability verified via Adjusted Rand Index.</p>
+      </div>
+      <div class="kpi-row" id="meth-kpis"></div>
+      <div class="g2">
+        <div class="card">
+          <div class="card-title">Silhouette Score by K <span style="font-weight:400;font-size:11px;color:var(--muted)">(higher = better)</span></div>
+          <div style="position:relative;height:230px"><canvas id="ch-sil"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Davies-Bouldin Score by K <span style="font-weight:400;font-size:11px;color:var(--muted)">(lower = better)</span></div>
+          <div style="position:relative;height:230px"><canvas id="ch-db"></canvas></div>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-title">Method Comparison Table</div>
+        <table class="tbl" id="method-tbl">
+          <thead><tr>
+            <th>Method</th><th>Algorithm</th><th class="center">Clusters</th>
+            <th class="center">Silhouette</th><th>Complexity</th>
+            <th class="center">Noise Handling</th><th class="center">Scalability</th><th>Role</th>
+          </tr></thead>
+          <tbody id="method-tbody"></tbody>
+        </table>
+        <div class="ari-row" id="ari-row" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+          <span style="white-space:nowrap;font-weight:600;color:var(--text)">KMeans ↔ Agglomerative Agreement (ARI):</span>
+          <div class="ari-bar-wrap"><div class="ari-bar-fill" id="ari-fill" style="width:0%"></div></div>
+          <span id="ari-val" style="white-space:nowrap;font-weight:700;color:var(--primary)">—</span>
+          <span id="ari-note" style="color:var(--muted)">—</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Scatter Comparison: K-Means vs Agglomerative vs DBSCAN</div>
+        <div class="g3" style="margin-bottom:0">
+          <div>
+            <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px;text-align:center">K-Means</div>
+            <div style="position:relative;height:200px"><canvas id="ch-s1"></canvas></div>
+          </div>
+          <div>
+            <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px;text-align:center">Agglomerative</div>
+            <div style="position:relative;height:200px"><canvas id="ch-s2"></canvas></div>
+          </div>
+          <div>
+            <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px;text-align:center">DBSCAN</div>
+            <div style="position:relative;height:200px"><canvas id="ch-s3"></canvas></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════ PAGE 4: TARGETING ═════════════════ -->
+    <div class="page" id="page-targeting">
+      <div class="page-header">
+        <h1>Targeting Recommendations</h1>
+        <p>Segment-based campaign strategy ranked by conversion probability. Highest-probability segment flagged with rationale.</p>
+      </div>
+      <div class="kpi-row" id="tgt-kpis"></div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-title">Campaign Strategy Table</div>
+        <table class="tbl">
+          <thead><tr>
+            <th>Segment</th><th class="center">Conv. Prob.</th><th>Channel</th>
+            <th>Message Strategy</th><th>CTA</th><th class="center">Priority</th><th>Expected Lift</th>
+          </tr></thead>
+          <tbody id="tgt-tbody"></tbody>
+        </table>
+      </div>
+      <div class="g2">
+        <div class="card">
+          <div class="card-title">Conversion Probability Score (0–100)</div>
+          <div style="position:relative;height:220px"><canvas id="ch-conv"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Expected Campaign Lift Range</div>
+          <div style="position:relative;height:220px"><canvas id="ch-lift"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<script>
+const API = 'http://localhost:5000/api';
+const charts = {};
+const PAGE_TITLES = {overview:'Overview',profiles:'Cluster Profiles',methods:'Method Comparison',targeting:'Targeting Recommendations'};
+
+Chart.defaults.font.family = "'Inter',sans-serif";
+Chart.defaults.font.size   = 12;
+Chart.defaults.color       = '#6B7A99';
+const GRID   = '#E2E8F0';
+const TT_CFG = { backgroundColor:'#1C2B3A', titleColor:'#fff', bodyColor:'#CBD5E1', padding:10, borderColor:'rgba(255,255,255,.08)', borderWidth:1, cornerRadius:7 };
+const mkScale = (extra={}) => ({ grid:{color:GRID}, ticks:{color:'#6B7A99'}, ...extra });
+
+// ── nav ────────────────────────────────────────────────────────────────────────
+function showPage(name, el) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  el.classList.add('active');
+  document.getElementById('topbar-title').textContent = PAGE_TITLES[name]||name;
+  if (name==='methods')   renderMethods();
+  if (name==='targeting') renderTargetingCharts();
+}
+
+// ── fetch ──────────────────────────────────────────────────────────────────────
+async function get(path) {
+  const r = await fetch(API+path);
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+}
+
+// ── scatter state ──────────────────────────────────────────────────────────────
+let _scatter = [], _profiles = [];
+const DBSCAN_COLORS = ['#6366F1','#10B981','#F59E0B','#EF4444','#8B5CF6','#EC4899'];
+
+function makeScatterDatasets(mode) {
+  if (mode === 'kmeans') {
+    return _profiles.map(p => ({
+      label: p.label,
+      data:  _scatter.filter(d=>d.kmeans_lbl===p.cluster).map(d=>({x:d.pca_x,y:d.pca_y,meta:d})),
+      backgroundColor: p.color+'BB', borderColor: p.color, borderWidth:.5,
+      pointRadius:4, pointHoverRadius:7,
+    }));
+  } else if (mode === 'agg') {
+    // Remap agg_lbl using same color as the kmeans cluster that best overlaps
+    const colorByAgg = {};
+    _profiles.forEach(p => {
+      const matching = _scatter.filter(d=>d.kmeans_lbl===p.cluster);
+      if (matching.length) {
+        const aggVal = matching[0].agg_lbl;
+        colorByAgg[aggVal] = p.color;
+      }
+    });
+    const aggGroups = [...new Set(_scatter.map(d=>d.agg_lbl))].sort();
+    return aggGroups.map((a,i) => {
+      const color = colorByAgg[a] || DBSCAN_COLORS[i % DBSCAN_COLORS.length];
+      return {
+        label: `Agg Cluster ${a}`,
+        data:  _scatter.filter(d=>d.agg_lbl===a).map(d=>({x:d.pca_x,y:d.pca_y,meta:d})),
+        backgroundColor: color+'BB', borderColor: color, borderWidth:.5,
+        pointRadius:4, pointHoverRadius:7,
+      };
+    });
+  } else { // dbscan
+    const dbGroups = [...new Set(_scatter.map(d=>d.dbscan_lbl))].sort((a,b)=>a-b);
+    return dbGroups.map((g,i) => {
+      const isNoise = g === -1;
+      const color   = isNoise ? '#CBD5E1' : DBSCAN_COLORS[i % DBSCAN_COLORS.length];
+      return {
+        label: isNoise ? 'Noise / Outlier' : `DBSCAN Cluster ${g}`,
+        data:  _scatter.filter(d=>d.dbscan_lbl===g).map(d=>({x:d.pca_x,y:d.pca_y,meta:d})),
+        backgroundColor: color+'99', borderColor: color, borderWidth: isNoise ? 0 : .5,
+        pointRadius: isNoise ? 2 : 4, pointHoverRadius:7,
+      };
+    });
+  }
+}
+
+function switchScatter(mode, btn) {
+  document.querySelectorAll('.scatter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  charts.scatter.data.datasets = makeScatterDatasets(mode);
+  charts.scatter.update();
+  const lg = document.getElementById('scatter-legend');
+  lg.innerHTML = charts.scatter.data.datasets.map(ds => `
+    <div class="legend-item">
+      <div class="legend-dot" style="background:${ds.borderColor}"></div>${ds.label}
+    </div>`).join('');
+}
+
+// ── INIT ───────────────────────────────────────────────────────────────────────
+async function init() {
+  try {
+    const [ov, elbow, scatter, profiles, targeting, radar, methods] = await Promise.all([
+      get('/overview'), get('/elbow'), get('/scatter'),
+      get('/profiles'), get('/targeting'), get('/radar'), get('/method_comparison'),
+    ]);
+
+    _scatter  = scatter;
+    _profiles = profiles;
+
+    document.getElementById('meta-users').textContent = `${ov.total_users} users`;
+    document.getElementById('meta-k').textContent     = `Optimal K: ${ov.optimal_k}`;
+
+    renderOverviewKPIs(ov);
+    renderScatter(scatter, profiles);
+    renderElbow(elbow);
+    renderPie(profiles);
+    renderGroupedBar(profiles);
+    renderProfiles(profiles);
+    renderRadar(radar);
+    renderCompTable(profiles);
+    renderTargetingTable(targeting, profiles);
+
+    window._data = { ov, elbow, profiles, targeting, methods };
+
+    document.getElementById('loading').style.opacity = '0';
+    setTimeout(()=>document.getElementById('loading').style.display='none', 400);
+  } catch (e) {
+    console.error(e);
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('error-banner').style.display = 'block';
+  }
+}
+
+// ── OVERVIEW KPIs ──────────────────────────────────────────────────────────────
+function renderOverviewKPIs(ov) {
+  const items = [
+    { label:'Total Users',        value: ov.total_users,          cls:'blue', sub:'synthetic dataset' },
+    { label:'Optimal Clusters',   value: ov.optimal_k,            cls:'blue', sub:'max silhouette score' },
+    { label:'KMeans Silhouette',  value: ov.silhouette_kmeans,     cls:'green',sub:'cluster separation quality' },
+    { label:'Method Agreement',   value: ov.ari_kmeans_agg,       cls:'green',sub:'KMeans–Agg ARI (1 = identical)' },
+  ];
+  document.getElementById('ov-kpis').innerHTML = items.map(i=>`
+    <div class="kpi-card">
+      <div class="kpi-label">${i.label}</div>
+      <div class="kpi-value ${i.cls}">${i.value}</div>
+      <div class="kpi-sub">${i.sub}</div>
+    </div>`).join('');
+}
+
+// ── SCATTER ────────────────────────────────────────────────────────────────────
+function renderScatter(scatter, profiles) {
+  const ctx = document.getElementById('ch-scatter').getContext('2d');
+  charts.scatter = new Chart(ctx, {
+    type:'scatter',
+    data:{ datasets: makeScatterDatasets('kmeans') },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{ ...TT_CFG, callbacks:{ label: c=>{
+          const m=c.raw.meta;
+          return [` ${m.kmeans_label}`,` Sessions: ${m.session_frequency}`,` Time: ${m.avg_time_spent}m`,` Conv: ${m.conversion_history}`];
+        }}}
+      },
+      scales:{ x:mkScale({title:{display:true,text:'PC1',color:'#6B7A99'}}), y:mkScale({title:{display:true,text:'PC2',color:'#6B7A99'}}) },
+    }
+  });
+  document.getElementById('scatter-legend').innerHTML = profiles.map(p=>`
+    <div class="legend-item"><div class="legend-dot" style="background:${p.color}"></div>${p.label}</div>`).join('');
+}
+
+// ── ELBOW ──────────────────────────────────────────────────────────────────────
+function renderElbow(elbow) {
+  document.getElementById('elbow-badge').textContent = `Optimal K = ${elbow.optimal_k}`;
+  document.getElementById('score-row').innerHTML = [
+    { label:'Best Silhouette', val: Math.max(...elbow.silhouettes).toFixed(4) },
+    { label:'Best DB Score',   val: Math.min(...elbow.db_scores).toFixed(4) },
+    { label:'K Range',         val: `${elbow.k_values[0]} – ${elbow.k_values.at(-1)}` },
+  ].map(c=>`<div class="score-chip">${c.label} <b>${c.val}</b></div>`).join('');
+
+  charts.elbow = new Chart(document.getElementById('ch-elbow').getContext('2d'), {
+    data:{
+      labels: elbow.k_values.map(k=>`K=${k}`),
+      datasets:[
+        { type:'line', label:'Inertia',    data:elbow.inertias,    yAxisID:'y',
+          borderColor:'#CBD5E1', backgroundColor:'rgba(203,213,225,.12)', borderWidth:2, tension:.3, fill:true,
+          pointBackgroundColor: elbow.k_values.map(k=>k===elbow.optimal_k?'#3B6FF0':'#CBD5E1'),
+          pointRadius:          elbow.k_values.map(k=>k===elbow.optimal_k?8:4) },
+        { type:'line', label:'Silhouette', data:elbow.silhouettes, yAxisID:'y1',
+          borderColor:'#10B981', backgroundColor:'rgba(16,185,129,.07)', borderWidth:2, tension:.3, borderDash:[5,4],
+          pointBackgroundColor: elbow.k_values.map(k=>k===elbow.optimal_k?'#10B981':'#A7F3D0'),
+          pointRadius:          elbow.k_values.map(k=>k===elbow.optimal_k?8:4) },
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{labels:{boxWidth:12,padding:14}}, tooltip:TT_CFG },
+      scales:{ x:mkScale(), y:mkScale({position:'left'}), y1:{position:'right',grid:{display:false},ticks:{color:'#6B7A99'}} },
+    }
+  });
+}
+
+// ── PIE ────────────────────────────────────────────────────────────────────────
+function renderPie(profiles) {
+  charts.pie = new Chart(document.getElementById('ch-pie').getContext('2d'), {
+    type:'doughnut',
+    data:{
+      labels: profiles.map(p=>p.label),
+      datasets:[{ data:profiles.map(p=>p.size),
+        backgroundColor:profiles.map(p=>p.color+'CC'), borderColor:profiles.map(p=>p.color), borderWidth:2, hoverOffset:6 }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false, cutout:'62%',
+      plugins:{
+        legend:{position:'bottom',labels:{boxWidth:11,padding:14}},
+        tooltip:{...TT_CFG, callbacks:{label:c=>` ${c.label}: ${c.raw} users (${((c.raw/500)*100).toFixed(1)}%)`}}
+      }
+    }
+  });
+}
+
+// ── GROUPED BAR ────────────────────────────────────────────────────────────────
+function renderGroupedBar(profiles) {
+  const fKeys   = ['session_frequency','avg_time_spent','scroll_depth','repeat_visits','conversion_history'];
+  const fLabels = ['Session Freq','Avg Time (m)','Scroll Depth','Repeat Visits','Conversions'];
+  charts.bar = new Chart(document.getElementById('ch-bar').getContext('2d'), {
+    type:'bar',
+    data:{
+      labels: fLabels,
+      datasets: profiles.map(p=>({ label:p.label, data:fKeys.map(k=>p[k]),
+        backgroundColor:p.color+'99', borderColor:p.color, borderWidth:1, borderRadius:3 }))
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{labels:{boxWidth:11,padding:12}}, tooltip:TT_CFG},
+      scales:{x:mkScale(), y:mkScale()},
+    }
+  });
+}
+
+// ── SEGMENT CARDS ──────────────────────────────────────────────────────────────
+function renderProfiles(profiles) {
+  const MAX   = {session_frequency:30,avg_time_spent:40,scroll_depth:100,repeat_visits:25,conversion_history:15};
+  const KEYS  = ['session_frequency','avg_time_spent','scroll_depth','repeat_visits','conversion_history'];
+  const KLBLS = ['Session Freq','Avg Time (m)','Scroll Depth %','Repeat Visits','Conversions'];
+  const SVG = {
+    rocket:   `<svg viewBox="0 0 20 20" fill="currentColor"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"/></svg>`,
+    warning:  `<svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>`,
+    shopping: `<svg viewBox="0 0 20 20" fill="currentColor"><path d="M3 1a1 1 0 000 2h1.22l.305 1.222a.997.997 0 00.01.042l1.358 5.43-.893.892C3.74 11.846 4.632 14 6.414 14H15a1 1 0 000-2H6.414l1-1H14a1 1 0 00.894-.553l3-6A1 1 0 0017 3H6.28l-.31-1.243A1 1 0 005 1H3z"/></svg>`,
+    eye:      `<svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/><path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"/></svg>`,
+  };
+  const IBGS = {rocket:'#EBF0FE',warning:'#FEF3C7',shopping:'#ECFDF5',eye:'#FEF2F2'};
+
+  document.getElementById('seg-grid').innerHTML = profiles.map((p,i)=>`
+    <div class="seg-card" style="--c:${p.color};--ico-bg:${IBGS[p.icon]||'#F1F5F9'}">
+      ${p.is_top ? '<div class="top-star">★ TOP</div>' : ''}
+      <div class="seg-head">
+        <div>
+          <div class="seg-name">${p.label}</div>
+          <div class="seg-size">${p.size} users · ${p.pct}%</div>
+        </div>
+        <div class="seg-ico">${SVG[p.icon]||''}</div>
+      </div>
+      <div class="seg-desc">${p.description}</div>
+      <div class="conv-score">
+        <div class="conv-score-val">${p.conversion_probability}%</div>
+        <div class="conv-score-lbl">Conversion<br>Probability</div>
+      </div>
+      <div class="seg-metrics">
+        ${KEYS.map((k,j)=>`
+          <div class="sm-row"><span class="sm-k">${KLBLS[j]}</span>
+            <span class="sm-v">${p[k]} <span style="color:var(--muted);font-weight:400">±${p[k+'_std']}</span></span>
+          </div>
+          <div class="sm-bar"><div class="sm-fill" style="width:${Math.round(p[k]/MAX[k]*100)}%"></div></div>
+        `).join('')}
+      </div>
+    </div>`).join('');
+
+  const best = profiles[0];
+  document.getElementById('hl-banner').style.display = 'flex';
+  document.getElementById('hl-title').textContent =
+    `Highest Conversion Probability: ${best.label} — ${best.conversion_probability}%`;
+  document.getElementById('hl-sub').textContent =
+    `${best.size} users (${best.pct}%) · Avg conversions: ${best.conversion_history} · ${best.description}`;
+}
+
+// ── RADAR ──────────────────────────────────────────────────────────────────────
+function renderRadar(radar) {
+  const labels = radar.features.map(f=>f.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()));
+  charts.radar = new Chart(document.getElementById('ch-radar').getContext('2d'), {
+    type:'radar',
+    data:{
+      labels,
+      datasets: radar.data.map(d=>({
+        label: d.label,
+        data:  radar.features.map(f=>d[f]),
+        borderColor:d.color, backgroundColor:d.color+'22', borderWidth:2,
+        pointBackgroundColor:d.color, pointRadius:3,
+      }))
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{boxWidth:11,padding:12}}, tooltip:TT_CFG},
+      scales:{r:{grid:{color:GRID},angleLines:{color:GRID},
+        pointLabels:{font:{size:11},color:'#6B7A99'},
+        ticks:{backdropColor:'transparent',color:'#6B7A99',font:{size:10}}}}
+    }
+  });
+}
+
+// ── COMPARISON TABLE ───────────────────────────────────────────────────────────
+function renderCompTable(profiles) {
+  const KEYS  = ['session_frequency','avg_time_spent','scroll_depth','repeat_visits','conversion_history','conversion_probability'];
+  const LBLS  = ['Session Freq','Avg Time (m)','Scroll Depth (%)','Repeat Visits','Conversions','Conv. Prob. (%)'];
+  document.getElementById('comp-tbl').innerHTML = `
+    <thead><tr><th>Metric</th>${profiles.map(p=>`<th style="color:${p.color}">${p.label}</th>`).join('')}</tr></thead>
+    <tbody>
+      ${KEYS.map((k,i)=>`
+        <tr>
+          <td style="color:var(--muted)">${LBLS[i]}</td>
+          ${profiles.map(p=>{
+            const mx = Math.max(...profiles.map(x=>x[k]));
+            return `<td style="${p[k]===mx?'font-weight:700;color:var(--primary)':''}">${p[k]}</td>`;
+          }).join('')}
+        </tr>`).join('')}
+      <tr><td style="color:var(--muted)">Users (N)</td>${profiles.map(p=>`<td>${p.size}</td>`).join('')}</tr>
+    </tbody>`;
+}
+
+// ── METHODS TAB (lazy) ─────────────────────────────────────────────────────────
+function renderMethods() {
+  if (charts.sil) return;
+  const { ov, elbow, methods } = window._data;
+
+  // KPIs
+  document.getElementById('meth-kpis').innerHTML = [
+    { label:'Optimal K',          value: elbow.optimal_k,                          cls:'blue', sub:'max silhouette score' },
+    { label:'KMeans Silhouette',  value: methods.methods[0].silhouette,             cls:'green',sub:'higher = better' },
+    { label:'Agg Silhouette',     value: methods.methods[1].silhouette,             cls:'green',sub:'Ward linkage' },
+    { label:'DBSCAN Clusters',    value: methods.methods[2].k,                      cls:'amber',sub:`${methods.methods[2].noise_points} noise pts` },
+  ].map(i=>`
+    <div class="kpi-card">
+      <div class="kpi-label">${i.label}</div>
+      <div class="kpi-value ${i.cls}">${i.value}</div>
+      <div class="kpi-sub">${i.sub}</div>
+    </div>`).join('');
+
+  // Method table body
+  const ROLE_CLS = {Primary:'b-primary',Validation:'badge b-warn',  'Outlier Detection':'badge b-grey'};
+  document.getElementById('method-tbody').innerHTML = methods.methods.map(m=>`
+    <tr>
+      <td><strong>${m.name}</strong></td>
+      <td>${m.algorithm}</td>
+      <td class="center">${m.k}</td>
+      <td class="center" style="font-weight:600;color:var(--primary)">${m.silhouette ?? '—'}</td>
+      <td>${m.complexity}</td>
+      <td class="center">${m.noise}</td>
+      <td class="center">${m.scalability}</td>
+      <td><span class="badge ${ROLE_CLS[m.role]||'b-grey'}">${m.role}</span></td>
+    </tr>`).join('');
+
+  // ARI
+  document.getElementById('ari-fill').style.width = (methods.ari_kmeans_agg * 100) + '%';
+  document.getElementById('ari-val').textContent  = methods.ari_kmeans_agg;
+  document.getElementById('ari-note').textContent = methods.interpretation;
+
+  // Silhouette bar
+  charts.sil = new Chart(document.getElementById('ch-sil').getContext('2d'), {
+    type:'bar',
+    data:{
+      labels: elbow.k_values.map(k=>`K=${k}`),
+      datasets:[{ label:'Silhouette Score', data:elbow.silhouettes,
+        backgroundColor: elbow.k_values.map(k=>k===elbow.optimal_k?'#3B6FF0':'#CBD5E1'),
+        borderColor:     elbow.k_values.map(k=>k===elbow.optimal_k?'#2554CC':'#94A3B8'),
+        borderWidth:1, borderRadius:4 }]
+    },
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:TT_CFG},
+      scales:{x:mkScale(),y:mkScale()} }
+  });
+
+  // DB line
+  charts.db = new Chart(document.getElementById('ch-db').getContext('2d'), {
+    type:'line',
+    data:{
+      labels: elbow.k_values.map(k=>`K=${k}`),
+      datasets:[{ label:'Davies-Bouldin', data:elbow.db_scores,
+        borderColor:'#F59E0B', backgroundColor:'rgba(245,158,11,.07)',
+        borderWidth:2, tension:.3, fill:true,
+        pointBackgroundColor: elbow.k_values.map(k=>k===elbow.optimal_k?'#3B6FF0':'#F59E0B'),
+        pointRadius:          elbow.k_values.map(k=>k===elbow.optimal_k?8:4) }]
+    },
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:TT_CFG},
+      scales:{x:mkScale(),y:mkScale()} }
+  });
+
+  // Three side-by-side scatters
+  const miniOpts = {
+    responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{display:false}, tooltip:{...TT_CFG,callbacks:{label:c=>`(${c.raw.x.toFixed(2)}, ${c.raw.y.toFixed(2)})`}} },
+    scales:{ x:{...mkScale(),ticks:{display:false},title:{display:false}}, y:{...mkScale(),ticks:{display:false},title:{display:false}} },
+  };
+
+  const makeSmall = (id, mode) => {
+    const ds = makeScatterDatasets(mode).map(d=>({...d,pointRadius:2.5,pointHoverRadius:5}));
+    return new Chart(document.getElementById(id).getContext('2d'), {type:'scatter',data:{datasets:ds},options:miniOpts});
+  };
+  charts.s1 = makeSmall('ch-s1','kmeans');
+  charts.s2 = makeSmall('ch-s2','agg');
+  charts.s3 = makeSmall('ch-s3','dbscan');
+}
+
+// ── TARGETING TABLE ────────────────────────────────────────────────────────────
+function renderTargetingTable(targeting, profiles) {
+  const best = profiles[0];
+  document.getElementById('tgt-kpis').innerHTML = [
+    { label:'Top Conv. Segment',   value: best.label,           cls:'green', sub:`${best.conversion_probability}% probability score` },
+    { label:'Total Segments',      value: profiles.length,      cls:'blue',  sub:'distinct behavioural groups' },
+    { label:'High-Priority Segs',  value: targeting.filter(t=>t.priority==='HIGH').length, cls:'amber', sub:'urgent targeting required' },
+    { label:'Avg Expected Lift',   value: '15%',                cls:'green', sub:'blended across all segments' },
+  ].map(i=>`
+    <div class="kpi-card">
+      <div class="kpi-label">${i.label}</div>
+      <div class="kpi-value ${i.cls}" style="font-size:${typeof i.value==='string'&&i.value.length>6?'16px':'26px'}">${i.value}</div>
+      <div class="kpi-sub">${i.sub}</div>
+    </div>`).join('');
+
+  document.getElementById('tgt-tbody').innerHTML = targeting.map(t=>`
+    <tr>
+      <td>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="seg-dot" style="background:${t.color}"></span>
+          <div>
+            <strong>${t.segment}</strong>
+            ${t.rank===1?'<span class="badge b-high" style="margin-left:6px">★ Highest</span>':''}
+          </div>
+        </div>
+      </td>
+      <td class="center"><strong style="color:var(--primary)">${t.conv_prob}%</strong></td>
+      <td>${t.channel}</td>
+      <td>
+        <div>${t.message}</div>
+        <div class="rationale">${t.rationale}</div>
+      </td>
+      <td><strong style="color:var(--primary)">${t.cta}</strong></td>
+      <td class="center"><span class="badge b-${t.priority.toLowerCase()}">${t.priority}</span></td>
+      <td><strong style="color:var(--green)">${t.expected_lift}</strong></td>
+    </tr>`).join('');
+}
+
+// ── TARGETING CHARTS (lazy) ────────────────────────────────────────────────────
+function renderTargetingCharts() {
+  if (charts.conv) return;
+  const { profiles, targeting } = window._data;
+
+  charts.conv = new Chart(document.getElementById('ch-conv').getContext('2d'), {
+    type:'bar',
+    data:{
+      labels: profiles.map(p=>p.label),
+      datasets:[{
+        label:'Conversion Probability (%)',
+        data:  profiles.map(p=>p.conversion_probability),
+        backgroundColor: profiles.map(p=>p.color+'BB'),
+        borderColor:     profiles.map(p=>p.color),
+        borderWidth:1, borderRadius:5,
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false, indexAxis:'y',
+      plugins:{legend:{display:false}, tooltip:TT_CFG},
+      scales:{
+        x:{...mkScale(), max:100, ticks:{callback:v=>v+'%'}},
+        y:mkScale()
+      },
+    }
+  });
+
+  const liftData = targeting.map(t=>({
+    label: t.segment,
+    color: t.color,
+    min:   parseInt(t.expected_lift),
+    range: parseInt(t.expected_lift.split('-')[1]) - parseInt(t.expected_lift),
+  }));
+
+  charts.lift = new Chart(document.getElementById('ch-lift').getContext('2d'), {
+    type:'bar',
+    data:{
+      labels: liftData.map(d=>d.label),
+      datasets:[
+        { label:'Base', data:liftData.map(d=>d.min),
+          backgroundColor:liftData.map(d=>d.color+'44'), borderWidth:0, borderRadius:3 },
+        { label:'Additional Lift', data:liftData.map(d=>d.range),
+          backgroundColor:liftData.map(d=>d.color+'CC'), borderColor:liftData.map(d=>d.color),
+          borderWidth:1, borderRadius:3 },
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false, indexAxis:'y',
+      stacked:true,
+      plugins:{legend:{labels:{boxWidth:11,padding:12}}, tooltip:TT_CFG},
+      scales:{
+        x:{...mkScale({stacked:true}), ticks:{callback:v=>v+'%'}},
+        y:mkScale({stacked:true})
+      },
+    }
+  });
+}
+
+window.addEventListener('load', ()=>setTimeout(init, 300));
+</script>
+</body>
+</html>
