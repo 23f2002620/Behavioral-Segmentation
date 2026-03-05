@@ -1,4 +1,4 @@
-# BehaviorIQ — Behavioral Segmentation Dashboard
+# Behavioral Segmentation
 
 A full-stack web application that clusters website users by behavioral metrics using K-Means, profiles each segment, and generates targeted campaign recommendations.
 
